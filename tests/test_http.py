@@ -39,6 +39,12 @@ class ViewerHttpTests(unittest.TestCase):
         cls.spaced.write_text("x = 1\n", encoding="utf-8")
         cls.hashed = cls.root / "hash#name.py"
         cls.hashed.write_text("x = 1\n", encoding="utf-8")
+        cls.plus = cls.root / "plus+name.py"
+        cls.plus.write_text("x = 1\n", encoding="utf-8")
+        cls.question = cls.root / "question?name.py"
+        cls.question.write_text("x = 1\n", encoding="utf-8")
+        cls.unicode_name = cls.root / "ünïcode.py"
+        cls.unicode_name.write_text("x = 1\n", encoding="utf-8")
         cls.bom = cls.root / "bom.py"
         cls.bom.write_bytes("x = 1\n".encode("utf-8-sig"))
         cls.binary = cls.root / "binary.py"
@@ -134,6 +140,29 @@ class ViewerHttpTests(unittest.TestCase):
 
         self.assertEqual(status, 200)
         self.assertIn("hash#name.py", body)
+
+    def test_path_with_a_plus_is_accepted_when_encoded(self) -> None:
+        status, body = self.text(open_url(str(self.plus)))
+
+        self.assertEqual(status, 200)
+        self.assertIn("plus+name.py", body)
+
+    def test_path_with_a_question_mark_is_accepted_when_encoded(self) -> None:
+        status, body = self.text(open_url(str(self.question)))
+
+        self.assertEqual(status, 200)
+        self.assertIn("question?name.py", body)
+
+    def test_path_with_non_ascii_is_accepted_when_encoded(self) -> None:
+        status, body = self.text(open_url(str(self.unicode_name)))
+
+        self.assertEqual(status, 200)
+        self.assertIn("ünïcode.py", body)
+
+    def test_unencoded_plus_is_read_as_a_space(self) -> None:
+        status, _ = self.text(f"/open?path={self.plus}")
+
+        self.assertEqual(status, 404)
 
     def test_byte_order_mark_is_not_displayed(self) -> None:
         status, body = self.text(open_url(str(self.bom)))

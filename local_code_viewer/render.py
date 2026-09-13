@@ -87,11 +87,12 @@ VIEWER_CSS = """
 :root {
   color-scheme: light;
   --page-bg: #ffffff;
+  --code-bg: #f8f8f8;
   --chrome-bg: #f6f8fa;
   --border: #d0d7de;
   --text: #1f2328;
   --muted: #57606a;
-  --gutter: #8c959f;
+  --gutter: #6e7781;
   --target-bg: #fff6c9;
   --target-accent: #d4a72c;
   --link: #0969da;
@@ -153,6 +154,10 @@ body {
   background: var(--target-bg);
   box-shadow: inset 3px 0 0 var(--target-accent);
 }
+.highlight .line:target .line-number {
+  color: var(--text);
+  background: var(--target-bg);
+}
 .highlight .source { white-space: pre; }
 .highlight .line-number {
   display: inline-block;
@@ -163,7 +168,7 @@ body {
   text-decoration: none;
   user-select: none;
   -webkit-user-select: none;
-  background: var(--page-bg);
+  background: var(--code-bg);
   position: sticky;
   left: 0;
 }
