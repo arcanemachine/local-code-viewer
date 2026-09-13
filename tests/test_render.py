@@ -6,6 +6,8 @@ import re
 import unittest
 from pathlib import Path
 
+from html.parser import HTMLParser
+
 from local_code_viewer.config import Mapping
 from local_code_viewer.render import (
     EXTENSION_LEXERS,
@@ -21,6 +23,53 @@ GUTTER_LINK = re.compile(r'<a class="line-number" href="#(L\d+)">(\d+)</a>')
 EXTERNAL_REFERENCE = re.compile(r'(?:src|href)="https?://')
 
 PYTHON_SOURCE = "def add(a, b):\n    return a + b\n"
+
+
+VOID_ELEMENTS = frozenset(
+    {"area", "base", "br", "col", "embed", "hr", "img", "input", "link",
+     "meta", "source", "track", "wbr"}
+)
+PHASING_ONLY_IN_PRE = frozenset({"a", "span", "code", "em", "strong", "b", "i", "wbr"})
+
+
+class _StructureChecker(HTMLParser):
+    """Collect tag-balance errors and the element names found inside <pre>."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.stack: list[str] = []
+        self.errors: list[str] = []
+        self.pre_depth = 0
+        self.pre_children: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs) -> None:
+        if self.pre_depth:
+            self.pre_children.add(tag)
+        if tag == "pre":
+            self.pre_depth += 1
+        if tag not in VOID_ELEMENTS:
+            self.stack.append(tag)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag == "pre":
+            self.pre_depth = max(0, self.pre_depth - 1)
+        if not self.stack:
+            self.errors.append(f"unexpected closing tag </{tag}>")
+            return
+        if self.stack[-1] != tag:
+            self.errors.append(f"</{tag}> closed while <{self.stack[-1]}> was open")
+            if tag in self.stack:
+                while self.stack and self.stack.pop() != tag:
+                    pass
+            return
+        self.stack.pop()
+
+
+def check_structure(document: str) -> _StructureChecker:
+    checker = _StructureChecker()
+    checker.feed(document)
+    checker.close()
+    return checker
 
 
 def anchors(document: str) -> list[str]:
@@ -207,6 +256,41 @@ class EscapingTests(unittest.TestCase):
         )
 
         self.assertIn("/container/project/lib/a.ex", document)
+
+
+class DocumentStructureTests(unittest.TestCase):
+    def render(self, source: str, name: str = "a.py") -> str:
+        return render_source(link_path=f"/root/{name}", filename=name, source=source)
+
+    def test_document_tags_balance(self) -> None:
+        checker = check_structure(self.render(PYTHON_SOURCE))
+
+        self.assertEqual(checker.errors, [])
+        self.assertEqual(checker.stack, [])
+
+    def test_error_page_tags_balance(self) -> None:
+        checker = check_structure(render_error(403, "Forbidden", "Nope."))
+
+        self.assertEqual(checker.errors, [])
+        self.assertEqual(checker.stack, [])
+
+    def test_help_page_tags_balance(self) -> None:
+        mappings = (Mapping(link_prefix="/root", actual_root=Path("/tmp")),)
+        checker = check_structure(render_help(mappings, 8765))
+
+        self.assertEqual(checker.errors, [])
+        self.assertEqual(checker.stack, [])
+
+    def test_pre_contains_only_phrasing_content(self) -> None:
+        checker = check_structure(self.render(PYTHON_SOURCE))
+
+        self.assertTrue(checker.pre_children)
+        self.assertLessEqual(checker.pre_children, PHASING_ONLY_IN_PRE)
+
+    def test_no_block_element_wraps_a_line(self) -> None:
+        checker = check_structure(self.render(PYTHON_SOURCE))
+
+        self.assertNotIn("div", checker.pre_children)
 
 
 class HelpAndErrorPagesTests(unittest.TestCase):
