@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-code-viewer"
+version = "0.1.0"
+description = "Read-only local source viewer with syntax highlighting and #L<n> line anchors"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["Pygments>=2.15"]
+
+[project.scripts]
+local-code-viewer = "local_code_viewer.cli:entry_point"
+
+[tool.setuptools]
+packages = ["local_code_viewer"]
