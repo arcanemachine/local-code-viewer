@@ -8,7 +8,14 @@ import sys
 from collections.abc import Sequence
 
 from .app import serve
-from .config import DEFAULT_MAX_BYTES, DEFAULT_PORT, ConfigError, Configuration, build_mappings
+from .config import (
+    DEFAULT_MAX_BYTES,
+    DEFAULT_PORT,
+    DEFAULT_LINK_PREFIX,
+    ConfigError,
+    Configuration,
+    build_mappings,
+)
 
 
 def _port(raw: str) -> int:
@@ -56,7 +63,7 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PATH",
         help=(
             "directory that may be served; links use the same path. Repeatable. "
-            "Defaults to the current directory."
+            f"Defaults to {DEFAULT_LINK_PREFIX}, which allows every readable file."
         ),
     )
     parser.add_argument(

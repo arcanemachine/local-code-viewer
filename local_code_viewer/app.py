@@ -7,7 +7,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
-from .config import Configuration
+from .config import DEFAULT_LINK_PREFIX, Configuration
 from .render import CONTENT_SECURITY_POLICY, render_error, render_help, render_source
 from .resolve import Outcome, resolve_request
 
@@ -245,7 +245,12 @@ def describe_startup(configuration: Configuration, bound_port: int) -> str:
     lines.append("Allowed paths:")
     for mapping in configuration.mappings:
         if mapping.is_identity:
-            lines.append(f"  {mapping.link_prefix}")
+            suffix = (
+                "  (every readable file on this filesystem)"
+                if mapping.link_prefix == DEFAULT_LINK_PREFIX
+                else ""
+            )
+            lines.append(f"  {mapping.link_prefix}{suffix}")
         else:
             lines.append(f"  {mapping.link_prefix} -> {mapping.actual_root}")
     lines.append(f"Maximum file size: {configuration.max_bytes} bytes")

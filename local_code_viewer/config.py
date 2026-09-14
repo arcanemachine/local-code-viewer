@@ -10,6 +10,10 @@ from pathlib import Path
 DEFAULT_PORT = 8765
 DEFAULT_MAX_BYTES = 2 * 1024 * 1024
 
+# The default root is the filesystem root, so links that carry any absolute path
+# work without configuration. Use --root to narrow it.
+DEFAULT_LINK_PREFIX = os.path.abspath(os.sep)
+
 
 class ConfigError(Exception):
     """Raised when the viewer is configured with an unusable mapping."""
@@ -101,14 +105,16 @@ def build_mappings(
 ) -> tuple[Mapping, ...]:
     """Build the active mappings from command-line input.
 
-    With no ``roots`` and no ``maps``, the resolved startup directory becomes
-    the single allowed root. Supplying either replaces that default.
+    With no ``roots`` and no ``maps``, the filesystem root becomes the single
+    allowed root. Supplying either replaces that default.
     """
     if not roots and not maps:
         return (
             Mapping(
-                link_prefix=os.path.normpath(cwd),
-                actual_root=canonical_directory(cwd, cwd=cwd, label="default root"),
+                link_prefix=DEFAULT_LINK_PREFIX,
+                actual_root=canonical_directory(
+                    DEFAULT_LINK_PREFIX, cwd=cwd, label="default root"
+                ),
             ),
         )
 

@@ -9,7 +9,11 @@ import unittest
 from pathlib import Path
 
 from local_code_viewer.cli import build_configuration, build_parser, main
-from local_code_viewer.config import DEFAULT_MAX_BYTES, DEFAULT_PORT
+from local_code_viewer.config import (
+    DEFAULT_LINK_PREFIX,
+    DEFAULT_MAX_BYTES,
+    DEFAULT_PORT,
+)
 
 
 class ParserTests(unittest.TestCase):
@@ -31,6 +35,7 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(configuration.port, DEFAULT_PORT)
         self.assertEqual(configuration.max_bytes, DEFAULT_MAX_BYTES)
         self.assertEqual(len(configuration.mappings), 1)
+        self.assertEqual(configuration.mappings[0].link_prefix, DEFAULT_LINK_PREFIX)
 
     def test_roots_and_maps_are_both_accepted(self) -> None:
         nested = self.root / "nested"

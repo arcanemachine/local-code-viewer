@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 from local_code_viewer.config import (
+    DEFAULT_LINK_PREFIX,
     ConfigError,
     Mapping,
     build_mappings,
@@ -26,13 +27,18 @@ class BuildMappingsTests(unittest.TestCase):
         self.other.mkdir()
         self.cwd = str(self.root)
 
-    def test_default_mapping_uses_startup_directory(self) -> None:
+    def test_default_mapping_is_the_filesystem_root(self) -> None:
         mappings = build_mappings(cwd=self.cwd)
 
         self.assertEqual(len(mappings), 1)
-        self.assertEqual(mappings[0].link_prefix, str(self.root))
-        self.assertEqual(mappings[0].actual_root, self.root)
+        self.assertEqual(mappings[0].link_prefix, DEFAULT_LINK_PREFIX)
+        self.assertEqual(mappings[0].actual_root, Path(DEFAULT_LINK_PREFIX))
         self.assertTrue(mappings[0].is_identity)
+
+    def test_default_root_ignores_the_startup_directory(self) -> None:
+        from_elsewhere = build_mappings(cwd=str(self.other))
+
+        self.assertEqual(from_elsewhere[0].link_prefix, DEFAULT_LINK_PREFIX)
 
     def test_explicit_root_replaces_the_default(self) -> None:
         mappings = build_mappings(cwd=self.cwd, roots=[str(self.other)])

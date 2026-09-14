@@ -39,15 +39,15 @@ run (needs network access once). Set `PYTHON=/path/to/python3` to choose a
 different interpreter. Every argument after `run.sh` is passed to the viewer, so
 all the options below work with it.
 
-Without the script, from the project directory, with no configuration, the
-current directory becomes the only allowed root:
+Without the script, from the project directory, with no configuration, the whole
+filesystem becomes the allowed root, so a link carrying any absolute path works:
 
 ```bash
 python3 -m local_code_viewer
 ```
 
-Add one or more roots explicitly. Supplying any `--root` or `--map` replaces the
-current-directory default:
+Narrow it with one or more roots. Supplying any `--root` or `--map` replaces the
+filesystem default:
 
 ```bash
 python3 -m local_code_viewer --root /home/you/project --root /home/you/other
@@ -69,7 +69,7 @@ Options:
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `--port PORT` | `8765` | Loopback port. Links contain this port, so the server refuses to start if it is taken rather than silently moving. |
-| `--root PATH` | current directory | Directory that may be served, addressed by the same path. Repeatable. |
+| `--root PATH` | `/` | Directory that may be served, addressed by the same path. Repeatable. |
 | `--map LINK=ACTUAL` | none | Translate a link path prefix to a directory on this machine. Repeatable. Split on the first `=`. |
 | `--max-bytes SIZE` | `2097152` | Largest file served, in bytes. |
 
@@ -121,6 +121,12 @@ else is refused with `415` rather than rendered incorrectly.
 
 The viewer is a local, single-user tool. It is nevertheless careful about the
 loopback boundary:
+
+With no arguments the allowed root is `/`, so every readable file on the machine
+can be requested. That is deliberate: generated links carry whatever absolute
+path their generator saw, and configuration should not be needed for them to
+work. `--root` is therefore the only access control this tool has, and the
+startup banner says when the whole filesystem is being served.
 
 - Binds `127.0.0.1` only. There is no option to bind another interface.
 - Validates the `Host` header and answers only loopback host names, which
