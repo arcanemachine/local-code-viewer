@@ -70,7 +70,7 @@ lines.
 | `--port PORT` | `8765` | Loopback port. Links contain this port, so the viewer refuses to start if it is taken rather than silently moving to another one. |
 | `--map LINK=ACTUAL` | none | Translate a link path prefix to a directory on this machine. Repeatable. |
 | `--lexer PATTERN=ALIAS` | none | Highlight file names matching a quoted shell-style pattern with a Pygments lexer. Repeatable. |
-| `--max-bytes SIZE` | `2097152` | Largest file served, in bytes. |
+| `--max-bytes SIZE` | `20971520` | Largest file served, in bytes. |
 
 ## What happens on first run
 
@@ -85,7 +85,7 @@ Startup prints the port, the roots being served, and any lexer overrides:
 Local code viewer listening on http://127.0.0.1:8765
 Allowed paths:
   /  (every readable file on this filesystem)
-Maximum file size: 2097152 bytes
+Maximum file size: 20971520 bytes
 Address a line with a #L<n> fragment, for example #L12.
 Press Ctrl-C to stop.
 ```

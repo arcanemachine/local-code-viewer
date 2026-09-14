@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_PORT = 8765
-DEFAULT_MAX_BYTES = 2 * 1024 * 1024
+DEFAULT_MAX_BYTES = 20 * 1024 * 1024
 
 # The default root is the filesystem root, so links that carry any absolute path
 # work without configuration. Use --root to narrow it.
