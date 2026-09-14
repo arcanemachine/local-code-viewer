@@ -20,8 +20,9 @@ cd /path/to/local-code-viewer
 
 Then open <http://127.0.0.1:8765/>.
 
-Requires Python 3.10 or newer. Pygments is the only dependency, and `local-code-viewer`
-installs it for you if it is missing.
+Requires Python 3.10 or newer. Pygments is the only dependency, and
+`./local-code-viewer` installs it outside this checkout if your Python does not
+already have a suitable version.
 
 By default the viewer serves every readable file on the machine, so a link
 carrying any absolute path works straight away. Narrow that with `--root`
@@ -98,10 +99,21 @@ lines.
 
 ## What happens on first run
 
-`local-code-viewer` uses your `python3` when it can already import Pygments. Otherwise it
-creates a `.venv` in this directory and installs the viewer into it, once; that
-first run needs network access, and later runs start immediately. Set
-`PYTHON=/path/to/python3` to choose a different interpreter.
+`./local-code-viewer` uses your `python3` when it can already import a suitable
+Pygments (2.19 or newer, still 2.x). Otherwise it keeps Pygments in a managed
+environment outside this checkout:
+
+```text
+${XDG_DATA_HOME:-$HOME/.local/share}/local-code-viewer/venv
+```
+
+Only Pygments is installed there. The viewer always runs from this checkout, so
+moving, editing, or updating the checkout takes effect on the next start, and
+there is no editable install pointing at a stale path. The first run needs
+network access; later runs start immediately. Set `PYTHON=/path/to/python3` to
+choose a different interpreter. If the managed environment stops working — its
+interpreter was removed, or the Pygments in it is the wrong version — the next
+run rebuilds it.
 
 Startup prints the port, the roots being served, and any lexer overrides:
 

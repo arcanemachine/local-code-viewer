@@ -1,9 +1,14 @@
 #!/bin/sh
 # Start the local code viewer.
 #
-# Uses the current Python if it already has Pygments; otherwise installs the
-# viewer into .venv inside this directory (first run only). Any arguments are
-# passed straight to the viewer, for example:
+# Uses the current Python when it already has a compatible Pygments. Otherwise it
+# keeps one in a managed environment outside this checkout:
+#
+#   ${XDG_DATA_HOME:-$HOME/.local/share}/local-code-viewer/venv
+#
+# The viewer itself always runs from this checkout, so editing, moving, or
+# updating the checkout takes effect immediately. Any arguments are passed
+# straight to the viewer, for example:
 #
 #   ./local-code-viewer --root ~/code/project --port 8765
 #
@@ -11,22 +16,62 @@ set -eu
 
 here=$(cd "$(dirname "$0")" && pwd)
 python=${PYTHON:-python3}
-venv="$here/.venv"
+data_home=${XDG_DATA_HOME:-$HOME/.local/share}
+venv="$data_home/local-code-viewer/venv"
+venv_python="$venv/bin/python"
 
-if "$python" -c 'import pygments' 2>/dev/null; then
+pygments_ok() {
+  [ -x "$1" ] || return 1
+  "$1" -c 'import sys
+try:
+    import pygments
+except ImportError:
+    sys.exit(1)
+parts = []
+for piece in getattr(pygments, "__version__", "").split(".")[:2]:
+    digits = "".join(character for character in piece if character.isdigit())
+    if not digits:
+        break
+    parts.append(int(digits))
+sys.exit(0 if (2, 19) <= tuple(parts)[:2] < (3, 0) else 1)' 2>/dev/null
+}
+
+run_viewer() {
+  interpreter="$1"
+  shift
+  exec env PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}" "$interpreter" -m local_code_viewer "$@"
+}
+
+if pygments_ok "$python"; then
   echo "Starting with $python (Pygments already available)." >&2
-  exec env PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}" "$python" -m local_code_viewer "$@"
+  run_viewer "$python" "$@"
 fi
 
-if [ ! -x "$venv/bin/local-code-viewer" ]; then
-  echo "Installing the viewer into $venv (first run only; needs network access)." >&2
+# An existing environment that no longer works, because its interpreter moved or
+# its Pygments is the wrong version, is rebuilt rather than debugged.
+if [ -e "$venv" ] && ! pygments_ok "$venv_python"; then
+  echo "Rebuilding $venv" >&2
+  rm -rf "$venv"
+fi
+
+if [ ! -x "$venv_python" ]; then
+  echo "Creating $venv (first run only; needs network access)." >&2
+  mkdir -p "$(dirname "$venv")"
   if ! "$python" -m venv "$venv"; then
     echo "Could not create a virtual environment with $python." >&2
-    echo "Install the venv module, or set PYTHON to an interpreter that has Pygments." >&2
+    echo "Install the venv module, or set PYTHON to an interpreter that has Pygments 2.x." >&2
     exit 1
   fi
-  "$venv/bin/python" -m pip install --quiet --upgrade pip
-  "$venv/bin/python" -m pip install --quiet -e "$here"
+  if ! "$venv_python" -m pip install --quiet "Pygments>=2.19,<3"; then
+    echo "Could not install Pygments into $venv." >&2
+    echo "Check network access, or set PYTHON to an interpreter that has Pygments 2.x." >&2
+    exit 1
+  fi
 fi
 
-exec "$venv/bin/local-code-viewer" "$@"
+if ! pygments_ok "$venv_python"; then
+  echo "$venv does not provide a usable Pygments." >&2
+  exit 1
+fi
+
+run_viewer "$venv_python" "$@"
