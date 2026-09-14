@@ -21,12 +21,26 @@ it is explicitly configured to serve.
 ## Requirements
 
 - Python 3.10 or newer
-- [Pygments](https://pygments.org/) (the only runtime dependency)
+- [Pygments](https://pygments.org/), the only runtime dependency
+
+If Pygments is not already available, `run.sh` installs it for you.
 
 ## Running
 
-From the project directory, with no configuration, the current directory
-becomes the only allowed root:
+The quickest start, from this directory:
+
+```bash
+./run.sh --root /home/you/project
+```
+
+`run.sh` uses your `python3` when it can already import Pygments. Otherwise it
+creates a `.venv` in this directory and installs the viewer into it on the first
+run (needs network access once). Set `PYTHON=/path/to/python3` to choose a
+different interpreter. Every argument after `run.sh` is passed to the viewer, so
+all the options below work with it.
+
+Without the script, from the project directory, with no configuration, the
+current directory becomes the only allowed root:
 
 ```bash
 python3 -m local_code_viewer
@@ -62,8 +76,8 @@ Options:
 Installing the package (`pip install -e .`) also provides a `local-code-viewer`
 command, which takes the same options and can be run from any directory. Without
 installing, `python3 -m local_code_viewer` only resolves from the project
-directory; from elsewhere, either install it or point `PYTHONPATH` at the
-project directory:
+directory; from elsewhere, either use `run.sh`, install it, or point `PYTHONPATH`
+at the project directory:
 
 ```bash
 PYTHONPATH=/path/to/local-code-viewer python3 -m local_code_viewer --root /home/you/project

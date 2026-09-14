@@ -1,0 +1,32 @@
+#!/bin/sh
+# Start the local code viewer.
+#
+# Uses the current Python if it already has Pygments; otherwise installs the
+# viewer into .venv inside this directory (first run only). Any arguments are
+# passed straight to the viewer, for example:
+#
+#   ./run.sh --root ~/code/project --port 8765
+#
+set -eu
+
+here=$(cd "$(dirname "$0")" && pwd)
+python=${PYTHON:-python3}
+venv="$here/.venv"
+
+if "$python" -c 'import pygments' 2>/dev/null; then
+  echo "Starting with $python (Pygments already available)." >&2
+  exec env PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}" "$python" -m local_code_viewer "$@"
+fi
+
+if [ ! -x "$venv/bin/local-code-viewer" ]; then
+  echo "Installing the viewer into $venv (first run only; needs network access)." >&2
+  if ! "$python" -m venv "$venv"; then
+    echo "Could not create a virtual environment with $python." >&2
+    echo "Install the venv module, or set PYTHON to an interpreter that has Pygments." >&2
+    exit 1
+  fi
+  "$venv/bin/python" -m pip install --quiet --upgrade pip
+  "$venv/bin/python" -m pip install --quiet -e "$here"
+fi
+
+exec "$venv/bin/local-code-viewer" "$@"
