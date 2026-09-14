@@ -7,15 +7,19 @@ import os
 import sys
 from collections.abc import Sequence
 
-from .app import serve
+from .app import describe_startup, serve
 from .config import (
     DEFAULT_LINK_PREFIX,
     DEFAULT_MAX_BYTES,
     DEFAULT_PORT,
+    DEFAULT_SITE_PORT,
+    SITE_CODE_PREFIX,
     ConfigError,
     Configuration,
     LexerOverride,
+    Mapping,
     build_mappings,
+    canonical_directory,
 )
 from .render import validate_alias
 
@@ -126,11 +130,80 @@ def build_configuration(arguments: argparse.Namespace, *, cwd: str) -> Configura
     )
 
 
+def build_site_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="local-code-viewer site",
+        description=(
+            "Serve a directory as a website and highlighted source frames from "
+            "one origin, so a page can embed code in an iframe and read the frame "
+            "document from JavaScript."
+        ),
+    )
+    parser.add_argument(
+        "root",
+        metavar="ROOT",
+        help="directory to serve as the site; there is no default",
+    )
+    parser.add_argument(
+        "--port",
+        type=_port,
+        default=DEFAULT_SITE_PORT,
+        metavar="PORT",
+        help=f"loopback port to listen on (default: {DEFAULT_SITE_PORT})",
+    )
+    parser.add_argument(
+        "--lexer",
+        action="append",
+        default=[],
+        dest="lexers",
+        type=_lexer_argument,
+        metavar="PATTERN=ALIAS",
+        help=(
+            "highlight filenames matching a shell-style pattern with a Pygments "
+            "lexer, for example '*.foo'=rust. Quote the pattern. Repeatable; "
+            "the last matching pattern wins."
+        ),
+    )
+    parser.add_argument(
+        "--max-bytes",
+        type=_max_bytes,
+        default=DEFAULT_MAX_BYTES,
+        metavar="SIZE",
+        help=f"largest file to serve, in bytes (default: {DEFAULT_MAX_BYTES})",
+    )
+    return parser
+
+
+def build_site_configuration(
+    arguments: argparse.Namespace, *, cwd: str
+) -> Configuration:
+    """Turn parsed site-mode arguments into a validated configuration."""
+    site_root = canonical_directory(arguments.root, cwd=cwd, label="ROOT")
+    return Configuration(
+        mappings=(Mapping(link_prefix=SITE_CODE_PREFIX, actual_root=site_root),),
+        port=arguments.port,
+        max_bytes=arguments.max_bytes,
+        lexer_overrides=tuple(arguments.lexers),
+        site_root=site_root,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == "site":
+        parser = build_site_parser()
+        parsed = parser.parse_args(arguments[1:])
+        try:
+            configuration = build_site_configuration(parsed, cwd=os.getcwd())
+        except ConfigError as exc:
+            print(f"local-code-viewer: {exc}", file=sys.stderr)
+            return 2
+        return serve(configuration)
+
     parser = build_parser()
-    arguments = parser.parse_args(argv)
+    parsed = parser.parse_args(arguments)
     try:
-        configuration = build_configuration(arguments, cwd=os.getcwd())
+        configuration = build_configuration(parsed, cwd=os.getcwd())
     except ConfigError as exc:
         print(f"local-code-viewer: {exc}", file=sys.stderr)
         return 2

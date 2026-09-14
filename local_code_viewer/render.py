@@ -42,6 +42,12 @@ CONTENT_SECURITY_POLICY = (
     "form-action 'none'; frame-ancestors 'none'"
 )
 
+# Site mode allows the code frames to be embedded by pages on the same origin.
+SITE_CONTENT_SECURITY_POLICY = (
+    "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; "
+    "form-action 'none'; frame-ancestors 'self'"
+)
+
 
 class LineAnchorFormatter(HtmlFormatter):
     """Emit ``<span class="line" id="L<n>">`` wrappers carrying gutter links.

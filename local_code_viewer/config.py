@@ -8,7 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_PORT = 8765
+DEFAULT_SITE_PORT = 8766
 DEFAULT_MAX_BYTES = 20 * 1024 * 1024
+
+# The reserved prefix that site mode uses for highlighted source frames.
+SITE_CODE_PREFIX = "/__code"
 
 # The default root is the filesystem root, so links that carry any absolute path
 # work without configuration. Use --root to narrow it.
@@ -59,12 +63,19 @@ class LexerOverride:
 
 @dataclass(frozen=True)
 class Configuration:
-    """Everything the server needs in order to authorize and render requests."""
+    """Everything the server needs in order to authorize and render requests.
+
+    ``site_root`` selects site mode: the handler then serves that directory as a
+    website and the reserved ``/__code`` prefix as highlighted source. It is
+    never set to the filesystem root by default, and site mode never falls back
+    to the standalone viewer's whole-filesystem access.
+    """
 
     mappings: tuple[Mapping, ...]
     port: int
     max_bytes: int
     lexer_overrides: tuple[LexerOverride, ...] = ()
+    site_root: Path | None = None
 
 
 def normalize_link_prefix(raw: str, *, cwd: str, resolve_relative: bool) -> str:

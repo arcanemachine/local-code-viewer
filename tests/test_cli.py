@@ -9,11 +9,20 @@ import unittest
 from pathlib import Path
 
 from local_code_viewer.app import describe_startup
-from local_code_viewer.cli import build_configuration, build_parser, main
+from local_code_viewer.cli import (
+    build_configuration,
+    build_parser,
+    build_site_configuration,
+    build_site_parser,
+    main,
+)
 from local_code_viewer.config import (
     DEFAULT_LINK_PREFIX,
     DEFAULT_MAX_BYTES,
     DEFAULT_PORT,
+    DEFAULT_SITE_PORT,
+    SITE_CODE_PREFIX,
+    ConfigError,
 )
 
 
@@ -172,3 +181,69 @@ class MainTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SiteModeTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temporary.cleanup)
+        self.root = Path(self._temporary.name).resolve()
+        self.cwd = str(self.root)
+
+    def parse(self, *argv: str):
+        return build_site_parser().parse_args(list(argv))
+
+    def test_site_root_is_required(self) -> None:
+        with self.assertRaises(SystemExit):
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.parse()
+
+    def test_site_configuration_reserves_the_code_prefix(self) -> None:
+        configuration = build_site_configuration(self.parse(str(self.root)), cwd=self.cwd)
+
+        self.assertEqual(configuration.site_root, self.root)
+        self.assertEqual(len(configuration.mappings), 1)
+        self.assertEqual(configuration.mappings[0].link_prefix, SITE_CODE_PREFIX)
+        self.assertEqual(configuration.mappings[0].actual_root, self.root)
+
+    def test_site_port_has_its_own_default(self) -> None:
+        configuration = build_site_configuration(self.parse(str(self.root)), cwd=self.cwd)
+
+        self.assertEqual(configuration.port, DEFAULT_SITE_PORT)
+        self.assertEqual(DEFAULT_SITE_PORT, DEFAULT_PORT + 1)
+
+    def test_site_root_must_exist(self) -> None:
+        with self.assertRaises(ConfigError):
+            build_site_configuration(self.parse("/definitely/absent"), cwd=self.cwd)
+
+    def test_site_root_must_be_a_directory(self) -> None:
+        target = self.root / "file.txt"
+        target.write_text("x\n", encoding="utf-8")
+
+        with self.assertRaises(ConfigError):
+            build_site_configuration(self.parse(str(target)), cwd=self.cwd)
+
+    def test_site_mode_rejects_a_missing_root_before_serving(self) -> None:
+        stderr = io.StringIO()
+
+        with contextlib.redirect_stderr(stderr):
+            status = main(["site", "/definitely/absent"])
+
+        self.assertEqual(status, 2)
+        self.assertIn("absent", stderr.getvalue())
+
+    def test_site_mode_accepts_lexer_overrides(self) -> None:
+        configuration = build_site_configuration(
+            self.parse(str(self.root), "--lexer", "*.foo=rust"), cwd=self.cwd
+        )
+
+        self.assertEqual(configuration.lexer_overrides[0].alias, "rust")
+
+    def test_startup_summary_describes_site_mode(self) -> None:
+        configuration = build_site_configuration(self.parse(str(self.root)), cwd=self.cwd)
+
+        summary = describe_startup(configuration, DEFAULT_SITE_PORT)
+
+        self.assertIn("Serving site:", summary)
+        self.assertIn(SITE_CODE_PREFIX, summary)
+        self.assertNotIn("every readable file", summary)

@@ -40,6 +40,30 @@ local-code-viewer                                                # after pip ins
 PYTHONPATH=/path/to/local-code-viewer python3 -m local_code_viewer   # from anywhere, no install
 ```
 
+## Serve a local website with code iframes
+
+Site mode serves a website and highlighted code frames from one origin:
+
+```bash
+./run.sh site /path/to/site
+```
+
+Open <http://localhost:8766/>. Site mode requires an explicit root and serves
+`index.html` from it. It does not expose the standalone viewer's whole-filesystem
+routes.
+
+Embed a highlighted file from that root with:
+
+```html
+<iframe src="/__code/examples/demo.ex#L42"></iframe>
+```
+
+The page and iframe share the same origin, so parent JavaScript may access the
+iframe document. `/__code` is reserved: a real directory with that name in the
+site is not reachable, so the code frames and the site cannot collide. `site`
+also accepts `--port` (default `8766`), `--lexer`, and `--max-bytes`; run
+`./run.sh site --help` for the details.
+
 ## Open a file and target a line
 
 ```text
@@ -164,6 +188,14 @@ inside the roots it is allowed to serve.
 
 Files must be UTF-8. A byte-order mark is accepted and not displayed. Anything
 else is refused with `415` rather than rendered incorrectly.
+
+Site mode is deliberately less strict about its own files: they are served as
+bytes with a MIME type guessed from the file name, so images, fonts, and binary
+assets work, and no content-security policy is imposed on your site. Its code
+frames keep the viewer's policy, with `frame-ancestors 'self'` instead of
+`'none'`, which is what lets a page on the same origin embed them. A directory
+URL without a trailing slash answers `301` so that relative links resolve
+correctly, and requests inside the site root can never reach anything above it.
 
 ## Security model
 

@@ -22,6 +22,16 @@ class Outcome(Enum):
 
 
 @dataclass(frozen=True)
+class StaticTarget:
+    """A site-mode URL path that resolved to a file or a directory."""
+
+    outcome: Outcome
+    detail: str = ""
+    path: Path | None = None
+    is_directory: bool = False
+
+
+@dataclass(frozen=True)
 class ResolvedFile:
     """An authorized regular file."""
 
@@ -42,6 +52,50 @@ class Resolution:
 
 def _reject(outcome: Outcome, detail: str) -> Resolution:
     return Resolution(outcome=outcome, detail=detail)
+
+
+def resolve_static(requested: str, root: Path) -> StaticTarget:
+    """Resolve a site-mode URL path to a file or directory under ``root``.
+
+    Containment is checked before existence, exactly as for code requests, so a
+    path outside the site root is refused without revealing whether it exists.
+    """
+    if not requested:
+        return StaticTarget(Outcome.BAD_REQUEST, "no path was supplied")
+    if "\x00" in requested:
+        return StaticTarget(Outcome.BAD_REQUEST, "the path contains a NUL character")
+    if not os.path.isabs(requested):
+        return StaticTarget(Outcome.BAD_REQUEST, "the path must be absolute")
+
+    relative = requested.lstrip("/")
+    candidate = root / relative if relative else root
+    try:
+        provisional = candidate.resolve(strict=False)
+    except OSError:
+        return StaticTarget(Outcome.BAD_REQUEST, "the path could not be resolved")
+    if not is_within(provisional, root):
+        return StaticTarget(Outcome.FORBIDDEN, "the path escapes the site root")
+
+    try:
+        resolved = candidate.resolve(strict=True)
+    except FileNotFoundError:
+        return StaticTarget(Outcome.NOT_FOUND, "no such file")
+    except OSError:
+        return StaticTarget(Outcome.BAD_REQUEST, "the path could not be resolved")
+    if not is_within(resolved, root):
+        return StaticTarget(Outcome.FORBIDDEN, "the path escapes the site root")
+
+    try:
+        if resolved.is_dir():
+            return StaticTarget(Outcome.OK, "", resolved, is_directory=True)
+        if resolved.is_file():
+            return StaticTarget(Outcome.OK, "", resolved)
+    except OSError:
+        return StaticTarget(Outcome.FORBIDDEN, "the path could not be read")
+
+    return StaticTarget(
+        Outcome.BAD_REQUEST, "only regular files and directories can be served"
+    )
 
 
 def resolve_request(
