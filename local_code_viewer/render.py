@@ -211,7 +211,7 @@ def render_help(mappings: Sequence[Mapping], port: int) -> str:
     """Render the viewer's landing page."""
     base = f"http://127.0.0.1:{port}"
     prefixes = "\n".join(f"<li><code>{html.escape(m.link_prefix)}</code></li>" for m in mappings)
-    example = f"{base}/open?path=%2Fhome%2Fyou%2Fproject%2Flib%2Fexample.ex#L12"
+    example = f"{base}/home/you/project/lib/example.ex#L12"
     body = f"""<div class="prose">
 <h1>Local code viewer</h1>
 <p class="status">Running</p>
@@ -220,16 +220,16 @@ roots, highlights Elixir, Python, and TypeScript, and addresses every line with
 a <code>#L&lt;n&gt;</code> fragment.</p>
 
 <h2>Opening a file</h2>
-<pre>/open?path=&lt;percent-encoded absolute path&gt;#L&lt;n&gt;</pre>
-<p>The path must be absolute and is percent-encoded once. Characters such as a
-space, <code>#</code>, or <code>?</code> inside a file name must be encoded
-(for example <code>%23</code> for a literal <code>#</code>), otherwise the
-browser treats them as part of the URL structure.</p>
+<pre>{html.escape(base)}/&lt;absolute path&gt;#L&lt;n&gt;</pre>
+<p>The path is the file's own path, percent-encoded where it contains characters
+that are special in a URL. A space, <code>#</code>, or <code>?</code> in a file
+name must be encoded (for example <code>%23</code> for a literal
+<code>#</code>), otherwise the browser treats it as part of the URL structure.</p>
 <p>For example, to open line 12 of
 <code>/home/you/project/lib/example.ex</code>:</p>
 <pre>{html.escape(example)}</pre>
 <p>Copying the address bar keeps the anchor, so a link can point at one line.
-Line numbers are one-based.</p>
+Line numbers are one-based. Anything after a <code>?</code> is ignored.</p>
 
 <h2>Configured roots</h2>
 <ul>

@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import unquote, urlsplit
 
 from .config import DEFAULT_LINK_PREFIX, Configuration
 from .render import CONTENT_SECURITY_POLICY, render_error, render_help, render_source
@@ -19,6 +19,14 @@ OUTCOME_RESPONSES: dict[Outcome, tuple[int, str]] = {
     Outcome.NOT_FOUND: (404, "Not found"),
     Outcome.TOO_LARGE: (413, "File too large"),
 }
+
+
+def _decode_path(raw: str) -> str | None:
+    """Percent-decode a request path, or return None when it is not UTF-8."""
+    try:
+        return unquote(raw, encoding="utf-8", errors="strict")
+    except (UnicodeDecodeError, ValueError):
+        return None
 
 
 class ViewerRequestHandler(BaseHTTPRequestHandler):
@@ -66,16 +74,18 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                     render_help(self._configuration.mappings, self._bound_port),
                     head_only=head_only,
                 )
-            elif target.path == "/open":
-                self._serve_file(target.query, head_only=head_only)
-            else:
+                return
+            requested = _decode_path(target.path)
+            if requested is None:
                 self._fail(
-                    404,
-                    "Not found",
-                    f"No route matches {target.path!r}.",
-                    hint="Open / for the viewer's help page.",
+                    400,
+                    "Bad request",
+                    "The path is not valid UTF-8 once percent-decoded.",
+                    hint="Percent-encode the path as UTF-8.",
                     head_only=head_only,
                 )
+                return
+            self._serve_file(requested, head_only=head_only)
         except Exception as exc:  # noqa: BLE001 - the client must never see a traceback
             sys.stderr.write(f"local-code-viewer: request failed: {exc!r}\n")
             self._fail(
@@ -85,37 +95,12 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                 head_only=head_only,
             )
 
-    def _serve_file(self, query: str, *, head_only: bool) -> None:
-        try:
-            parameters = parse_qs(
-                query, keep_blank_values=True, encoding="utf-8", errors="strict"
-            )
-        except (UnicodeDecodeError, ValueError):
-            self._fail(
-                400,
-                "Bad request",
-                "The query string is not valid UTF-8 once percent-decoded.",
-                hint="Percent-encode the path as UTF-8.",
-                head_only=head_only,
-            )
-            return
-        requested_paths = parameters.get("path", [])
-        if len(requested_paths) != 1 or not requested_paths[0]:
-            self._fail(
-                400,
-                "Bad request",
-                "Exactly one non-empty 'path' parameter is required.",
-                hint="Use /open?path=<percent-encoded absolute path>#L12.",
-                head_only=head_only,
-            )
-            return
-
+    def _serve_file(self, requested: str, *, head_only: bool) -> None:
         resolution = resolve_request(
-            requested_paths[0],
+            requested,
             self._configuration.mappings,
             self._configuration.max_bytes,
         )
-        requested = requested_paths[0]
         if resolution.outcome is not Outcome.OK or resolution.file is None:
             status, title = OUTCOME_RESPONSES[resolution.outcome]
             self._fail(
@@ -222,8 +207,8 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(payload)
 
     def log_request(self, code: int | str = "-", size: int | str = "-") -> None:
-        route = urlsplit(self.path).path if self.path else ""
-        sys.stderr.write(f"{self.command} {route} -> {code}\n")
+        # A request path is a filesystem path, so only the outcome is logged.
+        sys.stderr.write(f"{self.command} -> {code}\n")
 
     def log_message(self, format: str, *args: object) -> None:
         sys.stderr.write(f"{self.client_address[0]} {format % args}\n")

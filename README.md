@@ -5,7 +5,7 @@ Python, and TypeScript with syntax highlighting, gives every line a stable
 `#L<n>` anchor, and can be linked to from generated documentation.
 
 ```text
-http://127.0.0.1:8765/open?path=%2Fhome%2Fyou%2Fproject%2Flib%2Fexample.ex#L123
+http://127.0.0.1:8765/home/you/project/lib/example.ex#L123
 ```
 
 Opening that URL renders the file, scrolls to line 123, and highlights it. The
@@ -15,8 +15,8 @@ fragment is handled entirely by the browser, so the page needs no JavaScript.
 
 Not an editor: nothing is ever written, renamed, deleted, or uploaded. Not a
 project browser: there is no directory listing, no search, and no file index.
-No language server, no Git integration, no live reload. It serves only the files
-it is explicitly configured to serve.
+No language server, no Git integration, no live reload. It serves only regular
+files inside the roots it is allowed to serve.
 
 ## Requirements
 
@@ -86,14 +86,20 @@ PYTHONPATH=/path/to/local-code-viewer python3 -m local_code_viewer --root /home/
 ## Linking to a line
 
 ```text
-/open?path=<percent-encoded absolute path>#L<n>
+http://127.0.0.1:8765<absolute path>#L<n>
 ```
 
-- The path is percent-encoded once and must be absolute in the link namespace.
-- A literal `#` or `?` in a file name must be encoded (`%23`, `%3F`), otherwise
-  the browser treats it as part of the URL structure.
+The URL path is the file's own path. `GET /` is reserved for a short help page,
+which is the only route the viewer has: everything else on the URL path is
+treated as a file path and resolved against the configured roots.
+
+- The path must be absolute in the link namespace.
+- Encode the characters that are special in a URL. A literal `#` or `?` in a
+  file name must be percent-encoded (`%23`, `%3F`), otherwise the browser treats
+  it as part of the URL structure. A space becomes `%20`. A literal `+` needs no
+  encoding, because the path is not form data.
+- Anything after a `?` is ignored.
 - Line numbers are one-based. Line 1 of `lib/example.ex` is `#L1`.
-- Anything other than `path` in the query string is ignored.
 - The response contains an element whose `id` is exactly `L<n>` for each line,
   so ordinary fragment navigation and browser history work.
 
@@ -155,9 +161,9 @@ file APIs and the threat model is a local single-user tool.
 | Status | When |
 | --- | --- |
 | `200` | File rendered, or the help page |
-| `400` | Missing, empty, duplicated, relative, or malformed `path`; directory; non-regular file |
+| `400` | Directory or non-regular file; malformed percent-encoding in the URL path |
 | `403` | Path outside every configured root; unreadable file; unexpected `Host` |
-| `404` | Unknown route; no such file |
+| `404` | No such file |
 | `405` | Any method other than `GET` and `HEAD` |
 | `413` | File larger than `--max-bytes` |
 | `415` | Not valid UTF-8 |

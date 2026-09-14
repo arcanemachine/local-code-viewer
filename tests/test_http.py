@@ -19,8 +19,9 @@ MAX_BYTES = 8192
 LONG_FILE_LINES = 200
 
 
-def open_url(path: str) -> str:
-    return "/open?path=" + quote(path, safe="")
+def file_url(path: str) -> str:
+    """The request path for a file: its own path, percent-encoded per segment."""
+    return quote(path, safe="/")
 
 
 class ViewerHttpTests(unittest.TestCase):
@@ -109,7 +110,7 @@ class ViewerHttpTests(unittest.TestCase):
     # Successful file rendering
 
     def test_source_file_is_served_with_line_anchors(self) -> None:
-        status, body = self.text(open_url(str(self.source)))
+        status, body = self.text(file_url(str(self.source)))
 
         self.assertEqual(status, 200)
         self.assertIn('id="L1"', body)
@@ -117,62 +118,51 @@ class ViewerHttpTests(unittest.TestCase):
         self.assertIn(str(self.source), body)
 
     def test_elixir_file_is_highlighted(self) -> None:
-        status, body = self.text(open_url(str(self.elixir)))
+        status, body = self.text(file_url(str(self.elixir)))
 
         self.assertEqual(status, 200)
         self.assertIn("defmodule", body)
         self.assertIn('class="kd"', body)
 
-    def test_unencoded_slashes_are_accepted(self) -> None:
-        status, body = self.text(f"/open?path={self.source}")
-
-        self.assertEqual(status, 200)
-        self.assertIn('id="L1"', body)
-
     def test_path_with_a_space_is_accepted(self) -> None:
-        status, body = self.text(open_url(str(self.spaced)))
+        status, body = self.text(file_url(str(self.spaced)))
 
         self.assertEqual(status, 200)
         self.assertIn('id="L1"', body)
 
     def test_path_with_a_percent_encoded_hash_is_accepted(self) -> None:
-        status, body = self.text(open_url(str(self.hashed)))
+        status, body = self.text(file_url(str(self.hashed)))
 
         self.assertEqual(status, 200)
         self.assertIn("hash#name.py", body)
 
     def test_path_with_a_plus_is_accepted_when_encoded(self) -> None:
-        status, body = self.text(open_url(str(self.plus)))
+        status, body = self.text(file_url(str(self.plus)))
 
         self.assertEqual(status, 200)
         self.assertIn("plus+name.py", body)
 
     def test_path_with_a_question_mark_is_accepted_when_encoded(self) -> None:
-        status, body = self.text(open_url(str(self.question)))
+        status, body = self.text(file_url(str(self.question)))
 
         self.assertEqual(status, 200)
         self.assertIn("question?name.py", body)
 
     def test_path_with_non_ascii_is_accepted_when_encoded(self) -> None:
-        status, body = self.text(open_url(str(self.unicode_name)))
+        status, body = self.text(file_url(str(self.unicode_name)))
 
         self.assertEqual(status, 200)
         self.assertIn("ünïcode.py", body)
 
-    def test_unencoded_plus_is_read_as_a_space(self) -> None:
-        status, _ = self.text(f"/open?path={self.plus}")
-
-        self.assertEqual(status, 404)
-
     def test_byte_order_mark_is_not_displayed(self) -> None:
-        status, body = self.text(open_url(str(self.bom)))
+        status, body = self.text(file_url(str(self.bom)))
 
         self.assertEqual(status, 200)
         self.assertNotIn("\ufeff", body)
         self.assertEqual(body.count('class="line"'), 1)
 
     def test_head_request_returns_headers_without_a_body(self) -> None:
-        status, headers, body = self.request("HEAD", open_url(str(self.source)))
+        status, headers, body = self.request("HEAD", file_url(str(self.source)))
 
         self.assertEqual(status, 200)
         self.assertEqual(body, b"")
@@ -180,88 +170,75 @@ class ViewerHttpTests(unittest.TestCase):
 
     # Bad requests
 
-    def test_missing_path_parameter_is_rejected(self) -> None:
-        status, body = self.text("/open")
+    def test_query_string_is_ignored(self) -> None:
+        status, body = self.text(file_url(str(self.source)) + "?line=5&cache=1")
 
-        self.assertEqual(status, 400)
-        self.assertIn("path", body)
+        self.assertEqual(status, 200)
+        self.assertIn('id="L1"', body)
 
-    def test_empty_path_parameter_is_rejected(self) -> None:
-        status, _ = self.text("/open?path=")
-
-        self.assertEqual(status, 400)
-
-    def test_duplicate_path_parameters_are_rejected(self) -> None:
-        status, _ = self.text(f"/open?path={self.source}&path={self.source}")
-
-        self.assertEqual(status, 400)
-
-    def test_relative_path_is_rejected(self) -> None:
-        status, _ = self.text("/open?path=relative.py")
-
-        self.assertEqual(status, 400)
-
-    def test_unknown_route_is_not_found(self) -> None:
-        status, _ = self.text("/nope")
+    def test_missing_file_is_not_found(self) -> None:
+        status, _ = self.text(file_url(str(self.root / "absent.py")))
 
         self.assertEqual(status, 404)
+
+    def test_raw_plus_is_a_literal_plus(self) -> None:
+        status, body = self.text(str(self.plus))
+
+        self.assertEqual(status, 200)
+        self.assertIn("plus+name.py", body)
 
     # Authorization
 
     def test_path_outside_the_root_is_forbidden(self) -> None:
-        status, body = self.text(open_url(str(self.outside_file)))
+        status, body = self.text(file_url(str(self.outside_file)))
+
+        self.assertEqual(status, 403)
+        self.assertNotIn('class="line"', body)
+
+    def test_traversal_is_forbidden(self) -> None:
+        traversal = f"{self.root}/../etc/passwd"
+
+        status, body = self.text(file_url(traversal))
 
         self.assertEqual(status, 403)
         self.assertNotIn('class="line"', body)
 
     def test_encoded_traversal_is_forbidden(self) -> None:
-        traversal = f"/open?path={self.root}%2F%2E%2E%2Fetc%2Fpasswd"
+        traversal = file_url(str(self.root)) + "%2F%2E%2E%2Fetc%2Fpasswd"
 
         status, body = self.text(traversal)
 
         self.assertEqual(status, 403)
         self.assertNotIn('class="line"', body)
 
-    def test_encoded_slash_traversal_is_forbidden(self) -> None:
-        traversal = f"/open?path={quote(str(self.root), safe='')}%2F%2e%2e%2Fpasswd"
-
-        status, _ = self.text(traversal)
-
-        self.assertEqual(status, 403)
-
     def test_directory_is_rejected(self) -> None:
-        status, _ = self.text(open_url(str(self.directory)))
+        status, _ = self.text(file_url(str(self.directory)))
 
         self.assertEqual(status, 400)
 
     def test_oversized_file_is_rejected(self) -> None:
-        status, body = self.text(open_url(str(self.oversized)))
+        status, body = self.text(file_url(str(self.oversized)))
 
         self.assertEqual(status, 413)
         self.assertIn(str(MAX_BYTES), body)
 
     def test_invalid_utf8_is_rejected(self) -> None:
-        status, body = self.text(open_url(str(self.binary)))
+        status, body = self.text(file_url(str(self.binary)))
 
         self.assertEqual(status, 415)
         self.assertNotIn("not utf-8", body)
 
-    def test_invalid_utf8_in_the_query_is_rejected(self) -> None:
-        status, body = self.text("/open?path=%2Ftmp%2F%FF%FE")
+    def test_invalid_utf8_in_the_path_is_rejected(self) -> None:
+        status, body = self.text("/tmp/%FF%FE")
 
         self.assertEqual(status, 400)
         self.assertNotIn("Traceback (most recent call last)", body)
 
     def test_malformed_percent_escape_is_handled_as_a_client_error(self) -> None:
-        status, body = self.text(f"/open?path={quote(str(self.root), safe='')}%2F%zz.py")
+        status, body = self.text(file_url(str(self.root)) + "/%zz.py")
 
         self.assertEqual(status, 404)
         self.assertNotIn("Traceback (most recent call last)", body)
-
-    def test_missing_file_is_not_found(self) -> None:
-        status, _ = self.text(open_url(str(self.root / "absent.py")))
-
-        self.assertEqual(status, 404)
 
     # Methods and host handling
 
@@ -296,7 +273,7 @@ class ViewerHttpTests(unittest.TestCase):
     # Response headers
 
     def test_success_response_carries_security_headers(self) -> None:
-        _, headers, _ = self.get(open_url(str(self.source)))
+        _, headers, _ = self.get(file_url(str(self.source)))
 
         self.assertEqual(headers["X-Content-Type-Options"], "nosniff")
         self.assertEqual(headers["Referrer-Policy"], "no-referrer")
@@ -312,7 +289,7 @@ class ViewerHttpTests(unittest.TestCase):
         self.assertNotIn("Access-Control-Allow-Origin", headers)
 
     def test_error_response_hides_implementation_detail(self) -> None:
-        for path in ("/nope", "/open", open_url(str(self.outside_file))):
+        for path in ("/nope", file_url(str(self.root / "absent.py")), file_url(str(self.outside_file))):
             with self.subTest(path=path):
                 _, body = self.text(path)
 
@@ -335,7 +312,7 @@ class ViewerHttpTests(unittest.TestCase):
         connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
         self.addCleanup(connection.close)
 
-        connection.request("GET", "/open?path=/container/project/absent.py")
+        connection.request("GET", "/container/project/absent.py")
         response = connection.getresponse()
         body = response.read().decode("utf-8")
 
@@ -346,12 +323,12 @@ class ViewerHttpTests(unittest.TestCase):
     def test_request_logging_omits_the_requested_path(self) -> None:
         captured = io.StringIO()
         with contextlib.redirect_stderr(captured):
-            status, _ = self.text(open_url(str(self.source)))
+            status, _ = self.text(file_url(str(self.source)))
 
         self.assertEqual(status, 200)
         logged = captured.getvalue()
         self.assertNotIn(str(self.source), logged)
-        self.assertIn("/open", logged)
+        self.assertIn("200", logged)
 
 
 if __name__ == "__main__":
