@@ -5,7 +5,7 @@
 # viewer into .venv inside this directory (first run only). Any arguments are
 # passed straight to the viewer, for example:
 #
-#   ./run.sh --root ~/code/project --port 8765
+#   ./local-code-viewer --root ~/code/project --port 8765
 #
 set -eu
 

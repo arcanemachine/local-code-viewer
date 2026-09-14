@@ -15,12 +15,12 @@ fragment is handled entirely by the browser, so the page needs no JavaScript.
 
 ```bash
 cd /path/to/local-code-viewer
-./run.sh
+./local-code-viewer
 ```
 
 Then open <http://127.0.0.1:8765/>.
 
-Requires Python 3.10 or newer. Pygments is the only dependency, and `run.sh`
+Requires Python 3.10 or newer. Pygments is the only dependency, and `local-code-viewer`
 installs it for you if it is missing.
 
 By default the viewer serves every readable file on the machine, so a link
@@ -28,10 +28,10 @@ carrying any absolute path works straight away. Narrow that with `--root`
 (repeatable) if you want to:
 
 ```bash
-./run.sh --root /home/you/project --root /home/you/other
+./local-code-viewer --root /home/you/project --root /home/you/other
 ```
 
-Everything after `run.sh` is passed to the viewer; `--help` lists all of it. If
+Everything after `local-code-viewer` is passed to the viewer; `--help` lists all of it. If
 you would rather not use the script:
 
 ```bash
@@ -45,7 +45,7 @@ PYTHONPATH=/path/to/local-code-viewer python3 -m local_code_viewer   # from anyw
 Site mode serves a website and highlighted code frames from one origin:
 
 ```bash
-./run.sh site /path/to/site
+./local-code-viewer site /path/to/site
 ```
 
 Open <http://localhost:8766/>. Site mode requires an explicit root and serves
@@ -62,7 +62,7 @@ The page and iframe share the same origin, so parent JavaScript may access the
 iframe document. `/__code` is reserved: a real directory with that name in the
 site is not reachable, so the code frames and the site cannot collide. `site`
 also accepts `--port` (default `8766`), `--lexer`, and `--max-bytes`; run
-`./run.sh site --help` for the details.
+`./local-code-viewer site --help` for the details.
 
 ## Open a file and target a line
 
@@ -98,7 +98,7 @@ lines.
 
 ## What happens on first run
 
-`run.sh` uses your `python3` when it can already import Pygments. Otherwise it
+`local-code-viewer` uses your `python3` when it can already import Pygments. Otherwise it
 creates a `.venv` in this directory and installs the viewer into it, once; that
 first run needs network access, and later runs start immediately. Set
 `PYTHON=/path/to/python3` to choose a different interpreter.
@@ -131,7 +131,7 @@ line numbers and anchors.
 no clue:
 
 ```bash
-./run.sh --lexer '*.foo'=rust --lexer 'Dockerfile.*'=docker
+./local-code-viewer --lexer '*.foo'=rust --lexer 'Dockerfile.*'=docker
 ```
 
 Quote the pattern so your shell does not expand it. The selection order is:
@@ -156,7 +156,7 @@ If the paths in your links were produced somewhere other than this machine — f
 example documentation generated inside a container — translate the prefix:
 
 ```bash
-./run.sh --map /container/project=/home/you/project
+./local-code-viewer --map /container/project=/home/you/project
 ```
 
 A request for `/container/project/lib/example.ex` then reads
@@ -264,7 +264,7 @@ and response headers.
 ## Project layout
 
 ```text
-run.sh                         start the viewer, installing Pygments if needed
+local-code-viewer              start the viewer, installing Pygments if needed
 local_code_viewer/config.py    mappings between link prefixes and directories
 local_code_viewer/resolve.py   path authorization and size checks
 local_code_viewer/render.py    Pygments selection, line anchors, page shell
