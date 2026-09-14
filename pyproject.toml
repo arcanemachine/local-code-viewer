@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Read-only local source viewer with syntax highlighting and #L<n> line anchors"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["Pygments>=2.15"]
+dependencies = ["Pygments>=2.19,<3"]
 
 [project.scripts]
 local-code-viewer = "local_code_viewer.cli:entry_point"

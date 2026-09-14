@@ -86,7 +86,19 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
             )
 
     def _serve_file(self, query: str, *, head_only: bool) -> None:
-        parameters = parse_qs(query, keep_blank_values=True)
+        try:
+            parameters = parse_qs(
+                query, keep_blank_values=True, encoding="utf-8", errors="strict"
+            )
+        except (UnicodeDecodeError, ValueError):
+            self._fail(
+                400,
+                "Bad request",
+                "The query string is not valid UTF-8 once percent-decoded.",
+                hint="Percent-encode the path as UTF-8.",
+                head_only=head_only,
+            )
+            return
         requested_paths = parameters.get("path", [])
         if len(requested_paths) != 1 or not requested_paths[0]:
             self._fail(

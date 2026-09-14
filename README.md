@@ -60,7 +60,14 @@ Options:
 | `--max-bytes SIZE` | `2097152` | Largest file served, in bytes. |
 
 Installing the package (`pip install -e .`) also provides a `local-code-viewer`
-command, which takes the same options.
+command, which takes the same options and can be run from any directory. Without
+installing, `python3 -m local_code_viewer` only resolves from the project
+directory; from elsewhere, either install it or point `PYTHONPATH` at the
+project directory:
+
+```bash
+PYTHONPATH=/path/to/local-code-viewer python3 -m local_code_viewer --root /home/you/project
+```
 
 ## Linking to a line
 
@@ -113,8 +120,9 @@ loopback boundary:
 - Sends `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'`,
   `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, and
   `Cache-Control: no-store`.
-- Never writes to the filesystem and never returns a traceback or an absolute
-  host path to the browser.
+- Never writes to the filesystem, and never returns a traceback or an internal
+  error detail to the browser. Error pages echo the requested link path; the
+  real directory behind a translated `--map` prefix is not disclosed.
 - Logs the route and status only; the requested path is not logged.
 
 There is a deliberate gap between validation and reading: another process
@@ -127,7 +135,7 @@ file APIs and the threat model is a local single-user tool.
 | Status | When |
 | --- | --- |
 | `200` | File rendered, or the help page |
-| `400` | Missing, empty, duplicated, or relative `path`; directory; non-regular file |
+| `400` | Missing, empty, duplicated, relative, or malformed `path`; directory; non-regular file |
 | `403` | Path outside every configured root; unreadable file; unexpected `Host` |
 | `404` | Unknown route; no such file |
 | `405` | Any method other than `GET` and `HEAD` |
@@ -150,10 +158,14 @@ escaping, and the HTTP surface including status codes and response headers.
 - The server must run on the same machine as the browser, because it listens on
   loopback. Serving from inside a container to a browser on the host does not
   work without its own network arrangement.
-- Developed and verified on Linux only. Other platforms are untested, although
-  the implementation uses portable standard-library path handling.
-- Chrome is expected to work, since the viewer is a plain HTML page served over
-  HTTP, but it has not been verified.
+- Developed and verified on Linux, with CPython 3.12.8 and Pygments 2.19.2.
+  Other platforms and Python versions are untested, although the implementation
+  uses portable standard-library path handling and no version-specific syntax.
+- Firefox 154 was verified by hand through its WebDriver BiDi endpoint: deep
+  links, pointer clicks from a local `file://` document, line highlighting,
+  horizontal scrolling, the sticky gutter, and script-like source. A headless
+  Chromium run covered the same behaviors. Google Chrome itself has not been
+  exercised.
 - Highlighting accuracy is Pygments' TextMate-style lexing, not a parser, so
   unusual syntax can be misclassified.
 - Only one theme (light) is provided, and there is no configuration file.

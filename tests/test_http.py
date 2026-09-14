@@ -246,6 +246,18 @@ class ViewerHttpTests(unittest.TestCase):
         self.assertEqual(status, 415)
         self.assertNotIn("not utf-8", body)
 
+    def test_invalid_utf8_in_the_query_is_rejected(self) -> None:
+        status, body = self.text("/open?path=%2Ftmp%2F%FF%FE")
+
+        self.assertEqual(status, 400)
+        self.assertNotIn("Traceback (most recent call last)", body)
+
+    def test_malformed_percent_escape_is_handled_as_a_client_error(self) -> None:
+        status, body = self.text(f"/open?path={quote(str(self.root), safe='')}%2F%zz.py")
+
+        self.assertEqual(status, 404)
+        self.assertNotIn("Traceback (most recent call last)", body)
+
     def test_missing_file_is_not_found(self) -> None:
         status, _ = self.text(open_url(str(self.root / "absent.py")))
 
