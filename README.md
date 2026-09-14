@@ -49,7 +49,7 @@ Site mode serves a website and highlighted code frames from one origin:
 ./local-code-viewer site /path/to/site
 ```
 
-Open <http://localhost:8766/>. Site mode requires an explicit root and serves
+Open <http://localhost:8765/>. Site mode requires an explicit root and serves
 `index.html` from it. It does not expose the standalone viewer's whole-filesystem
 routes.
 
@@ -62,7 +62,7 @@ Embed a highlighted file from that root with:
 The page and iframe share the same origin, so parent JavaScript may access the
 iframe document. `/__code` is reserved: a real directory with that name in the
 site is not reachable, so the code frames and the site cannot collide. `site`
-also accepts `--port` (default `8766`), `--lexer`, and `--max-bytes`; run
+also accepts `--port` (default `8765`), `--lexer`, and `--max-bytes`; run
 `./local-code-viewer site --help` for the details.
 
 ## Open a file and target a line

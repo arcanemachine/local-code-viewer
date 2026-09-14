@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 DEFAULT_PORT = 8765
-DEFAULT_SITE_PORT = 8766
+DEFAULT_SITE_PORT = 8765
 DEFAULT_MAX_BYTES = 20 * 1024 * 1024
 
 # The reserved prefix that site mode uses for highlighted source frames.
