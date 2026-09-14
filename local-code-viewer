@@ -14,7 +14,24 @@
 #
 set -eu
 
-here=$(cd "$(dirname "$0")" && pwd)
+# The launcher is often reached through a symlink, for example
+# ~/.local/bin/lcv, so follow the links to find the checkout it lives in.
+script=$0
+while [ -L "$script" ]; do
+  link_directory=$(cd "$(dirname "$script")" && pwd)
+  script=$(readlink "$script")
+  case $script in
+    /*) ;;
+    *) script="$link_directory/$script" ;;
+  esac
+done
+here=$(cd "$(dirname "$script")" && pwd)
+
+if [ ! -d "$here/local_code_viewer" ]; then
+  echo "$0 is not inside a local-code-viewer checkout." >&2
+  exit 1
+fi
+
 python=${PYTHON:-python3}
 data_home=${XDG_DATA_HOME:-$HOME/.local/share}
 venv="$data_home/local-code-viewer/venv"
