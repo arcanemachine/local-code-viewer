@@ -143,6 +143,7 @@ class ViewerRequestHandler(BaseHTTPRequestHandler):
                 link_path=source_file.link_path,
                 filename=os.path.basename(source_file.link_path),
                 source=source,
+                overrides=self._configuration.lexer_overrides,
             ),
             head_only=head_only,
         )
@@ -238,6 +239,10 @@ def describe_startup(configuration: Configuration, bound_port: int) -> str:
             lines.append(f"  {mapping.link_prefix}{suffix}")
         else:
             lines.append(f"  {mapping.link_prefix} -> {mapping.actual_root}")
+    if configuration.lexer_overrides:
+        lines.append("Lexer overrides (last match wins):")
+        for override in configuration.lexer_overrides:
+            lines.append(f"  {override.pattern} -> {override.alias}")
     lines.append(f"Maximum file size: {configuration.max_bytes} bytes")
     lines.append("Address a line with a #L<n> fragment, for example #L12.")
     lines.append("Press Ctrl-C to stop.")

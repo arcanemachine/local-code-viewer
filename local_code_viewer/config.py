@@ -50,12 +50,21 @@ class Mapping:
 
 
 @dataclass(frozen=True)
+class LexerOverride:
+    """A shell-style filename pattern bound to a Pygments lexer alias."""
+
+    pattern: str
+    alias: str
+
+
+@dataclass(frozen=True)
 class Configuration:
     """Everything the server needs in order to authorize and render requests."""
 
     mappings: tuple[Mapping, ...]
     port: int
     max_bytes: int
+    lexer_overrides: tuple[LexerOverride, ...] = ()
 
 
 def normalize_link_prefix(raw: str, *, cwd: str, resolve_relative: bool) -> str:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import html
 import os
 from collections.abc import Sequence
@@ -10,9 +11,10 @@ from functools import lru_cache
 from pygments import highlight
 from pygments.formatters.html import HtmlFormatter
 from pygments.lexer import Lexer
-from pygments.lexers import get_lexer_by_name
+from pygments.lexers import get_lexer_by_name, get_lexer_for_filename
+from pygments.util import ClassNotFound
 
-from .config import Mapping
+from .config import LexerOverride, Mapping
 
 LINE_ANCHOR_PREFIX = "L"
 
@@ -71,11 +73,34 @@ class LineAnchorFormatter(HtmlFormatter):
             )
 
 
-def lexer_for(path: str) -> Lexer:
-    """Return the lexer for a file path, falling back to plain text."""
-    extension = os.path.splitext(path)[1].lower()
-    name = EXTENSION_LEXERS.get(extension, FALLBACK_LEXER)
-    return get_lexer_by_name(name, **LEXER_OPTIONS)
+def lexer_for(path: str, overrides: Sequence[LexerOverride] = ()) -> Lexer:
+    """Return the lexer for a file path.
+
+    Precedence: the last matching user override, then a mapping verified for
+    this viewer, then Pygments' own filename detection, then plain text.
+    """
+    filename = os.path.basename(path)
+    for override in reversed(overrides):
+        if fnmatch.fnmatchcase(filename, override.pattern):
+            return get_lexer_by_name(override.alias, **LEXER_OPTIONS)
+
+    extension = os.path.splitext(filename)[1].lower()
+    name = EXTENSION_LEXERS.get(extension)
+    if name is not None:
+        return get_lexer_by_name(name, **LEXER_OPTIONS)
+
+    try:
+        return get_lexer_for_filename(filename, **LEXER_OPTIONS)
+    except ClassNotFound:
+        return get_lexer_by_name(FALLBACK_LEXER, **LEXER_OPTIONS)
+
+
+def validate_alias(alias: str) -> None:
+    """Raise ValueError when Pygments has no lexer for this alias."""
+    try:
+        get_lexer_by_name(alias)
+    except ClassNotFound as exc:
+        raise ValueError(f"unknown Pygments lexer alias: {alias!r}") from exc
 
 
 @lru_cache(maxsize=1)
@@ -201,9 +226,15 @@ def _page(title: str, link_path: str | None, body: str, *, token_styles: bool) -
     )
 
 
-def render_source(*, link_path: str, filename: str, source: str) -> str:
+def render_source(
+    *,
+    link_path: str,
+    filename: str,
+    source: str,
+    overrides: Sequence[LexerOverride] = (),
+) -> str:
     """Render one source file as a complete viewer document."""
-    body = highlight(source, lexer_for(link_path), LineAnchorFormatter())
+    body = highlight(source, lexer_for(link_path, overrides), LineAnchorFormatter())
     return _page(filename, link_path, body, token_styles=True)
 
 

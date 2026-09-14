@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from local_code_viewer.app import ViewerServer
-from local_code_viewer.config import Configuration, Mapping
+from local_code_viewer.config import Configuration, LexerOverride, Mapping
 from local_code_viewer.render import CONTENT_SECURITY_POLICY
 
 MAX_BYTES = 8192
@@ -319,6 +319,31 @@ class ViewerHttpTests(unittest.TestCase):
         self.assertEqual(response.status, 404)
         self.assertNotIn(str(self.root), body)
         self.assertIn("/container/project/absent.py", body)
+
+    def test_lexer_override_reaches_the_renderer(self) -> None:
+        configuration = Configuration(
+            mappings=(Mapping(link_prefix=str(self.root), actual_root=self.root),),
+            port=0,
+            max_bytes=MAX_BYTES,
+            lexer_overrides=(LexerOverride(pattern="*.ex", alias="text"),),
+        )
+        server = ViewerServer(configuration)
+        port = server.server_address[1]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(thread.join, 5)
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+        self.addCleanup(connection.close)
+
+        connection.request("GET", file_url(str(self.elixir)))
+        response = connection.getresponse()
+        body = response.read().decode("utf-8")
+
+        self.assertEqual(response.status, 200)
+        self.assertIn('class="line"', body)
+        self.assertNotIn('class="kd"', body)
 
     def test_request_logging_omits_the_requested_path(self) -> None:
         captured = io.StringIO()

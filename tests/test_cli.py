@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from local_code_viewer.app import describe_startup
 from local_code_viewer.cli import build_configuration, build_parser, main
 from local_code_viewer.config import (
     DEFAULT_LINK_PREFIX,
@@ -81,6 +82,46 @@ class ParserTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             with contextlib.redirect_stderr(io.StringIO()):
                 self.parse("--map", "/container/project")
+
+    def test_lexer_override_is_parsed(self) -> None:
+        configuration = self.configuration("--lexer", "*.foo=rust")
+
+        self.assertEqual(len(configuration.lexer_overrides), 1)
+        self.assertEqual(configuration.lexer_overrides[0].pattern, "*.foo")
+        self.assertEqual(configuration.lexer_overrides[0].alias, "rust")
+
+    def test_lexer_overrides_keep_their_order(self) -> None:
+        configuration = self.configuration(
+            "--lexer", "*.foo=rust", "--lexer", "special.foo=go"
+        )
+
+        self.assertEqual(
+            [(o.pattern, o.alias) for o in configuration.lexer_overrides],
+            [("*.foo", "rust"), ("special.foo", "go")],
+        )
+
+    def test_unknown_lexer_alias_is_rejected(self) -> None:
+        with self.assertRaises(SystemExit):
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.parse("--lexer", "*.foo=nosuchlexer")
+
+    def test_lexer_argument_without_an_alias_is_rejected(self) -> None:
+        for value in ("*.foo", "=rust", "*.foo="):
+            with self.subTest(value=value), self.assertRaises(SystemExit):
+                with contextlib.redirect_stderr(io.StringIO()):
+                    self.parse("--lexer", value)
+
+    def test_startup_summary_lists_lexer_overrides(self) -> None:
+        configuration = self.configuration("--lexer", "*.foo=rust")
+
+        summary = describe_startup(configuration, 8765)
+
+        self.assertIn("*.foo -> rust", summary)
+
+    def test_startup_summary_omits_absent_overrides(self) -> None:
+        summary = describe_startup(self.configuration(), 8765)
+
+        self.assertNotIn("Lexer overrides", summary)
 
     def test_map_with_an_empty_side_is_rejected(self) -> None:
         for value in ("=/host/path", "/container/project="):

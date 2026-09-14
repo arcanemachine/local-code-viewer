@@ -9,13 +9,15 @@ from collections.abc import Sequence
 
 from .app import serve
 from .config import (
+    DEFAULT_LINK_PREFIX,
     DEFAULT_MAX_BYTES,
     DEFAULT_PORT,
-    DEFAULT_LINK_PREFIX,
     ConfigError,
     Configuration,
+    LexerOverride,
     build_mappings,
 )
+from .render import validate_alias
 
 
 def _port(raw: str) -> int:
@@ -39,6 +41,19 @@ def _map_argument(raw: str) -> tuple[str, str]:
             "expected LINK_PREFIX=ACTUAL_ROOT, for example /container/project=/host/project"
         )
     return link_prefix, actual_root
+
+
+def _lexer_argument(raw: str) -> LexerOverride:
+    pattern, separator, alias = raw.partition("=")
+    if not separator or not pattern or not alias:
+        raise argparse.ArgumentTypeError(
+            "expected PATTERN=ALIAS, for example '*.ex'=elixir or 'Dockerfile*'=docker"
+        )
+    try:
+        validate_alias(alias)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
+    return LexerOverride(pattern=pattern, alias=alias)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -79,6 +94,19 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--lexer",
+        action="append",
+        default=[],
+        dest="lexers",
+        type=_lexer_argument,
+        metavar="PATTERN=ALIAS",
+        help=(
+            "highlight filenames matching a shell-style pattern with a Pygments "
+            "lexer, for example '*.foo'=rust. Quote the pattern. Repeatable; "
+            "the last matching pattern wins."
+        ),
+    )
+    parser.add_argument(
         "--max-bytes",
         type=_max_bytes,
         default=DEFAULT_MAX_BYTES,
@@ -94,6 +122,7 @@ def build_configuration(arguments: argparse.Namespace, *, cwd: str) -> Configura
         mappings=build_mappings(cwd=cwd, roots=arguments.root, maps=arguments.maps),
         port=arguments.port,
         max_bytes=arguments.max_bytes,
+        lexer_overrides=tuple(arguments.lexers),
     )
 
 

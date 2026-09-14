@@ -8,7 +8,7 @@ from pathlib import Path
 
 from html.parser import HTMLParser
 
-from local_code_viewer.config import Mapping
+from local_code_viewer.config import LexerOverride, Mapping
 from local_code_viewer.render import (
     EXTENSION_LEXERS,
     LineAnchorFormatter,
@@ -16,6 +16,7 @@ from local_code_viewer.render import (
     render_error,
     render_help,
     render_source,
+    validate_alias,
 )
 
 LINE_ID = re.compile(r'<span class="line" id="(L\d+)">')
@@ -97,6 +98,104 @@ class LexerSelectionTests(unittest.TestCase):
 
     def test_every_declared_extension_has_a_mapping(self) -> None:
         self.assertEqual(set(EXTENSION_LEXERS), {".ex", ".exs", ".py", ".ts"})
+
+
+class FilenameDetectionTests(unittest.TestCase):
+    def test_common_extensions_are_detected(self) -> None:
+        expected = {
+            "main.go": "GoLexer",
+            "main.rs": "RustLexer",
+            "app.rb": "RubyLexer",
+            "main.c": "CLexer",
+            "index.tsx": "TsxLexer",
+            "data.json": "JsonLexer",
+        }
+
+        for filename, lexer_name in expected.items():
+            with self.subTest(filename=filename):
+                self.assertEqual(type(lexer_for(filename)).__name__, lexer_name)
+
+    def test_special_filenames_are_detected(self) -> None:
+        for filename, lexer_name in {"Dockerfile": "DockerLexer", "Makefile": "MakefileLexer"}.items():
+            with self.subTest(filename=filename):
+                self.assertEqual(type(lexer_for(filename)).__name__, lexer_name)
+
+    def test_verified_extensions_still_win(self) -> None:
+        self.assertEqual(type(lexer_for("demo.exs")).__name__, "ElixirLexer")
+
+    def test_unrecognised_filename_falls_back_to_plain_text(self) -> None:
+        self.assertEqual(type(lexer_for("mystery.zzz")).__name__, "TextLexer")
+
+
+class LexerOverrideTests(unittest.TestCase):
+    def test_override_wins_over_detection(self) -> None:
+        overrides = (LexerOverride(pattern="*.py", alias="ruby"),)
+
+        self.assertEqual(type(lexer_for("script.py", overrides)).__name__, "RubyLexer")
+
+    def test_override_wins_over_a_verified_mapping(self) -> None:
+        overrides = (LexerOverride(pattern="*.ex", alias="python"),)
+
+        self.assertEqual(type(lexer_for("module.ex", overrides)).__name__, "PythonLexer")
+
+    def test_last_matching_override_wins(self) -> None:
+        overrides = (
+            LexerOverride(pattern="*.foo", alias="ruby"),
+            LexerOverride(pattern="special.foo", alias="go"),
+        )
+
+        self.assertEqual(type(lexer_for("special.foo", overrides)).__name__, "GoLexer")
+        self.assertEqual(type(lexer_for("other.foo", overrides)).__name__, "RubyLexer")
+
+    def test_non_matching_override_leaves_detection_alone(self) -> None:
+        overrides = (LexerOverride(pattern="*.nope", alias="ruby"),)
+
+        self.assertEqual(type(lexer_for("script.py", overrides)).__name__, "PythonLexer")
+
+    def test_pattern_is_matched_against_the_filename_only(self) -> None:
+        overrides = (LexerOverride(pattern="lib/*.py", alias="ruby"),)
+
+        self.assertEqual(type(lexer_for("/root/lib/a.py", overrides)).__name__, "PythonLexer")
+
+    def test_pattern_matching_is_case_sensitive(self) -> None:
+        overrides = (LexerOverride(pattern="*.PY", alias="ruby"),)
+
+        self.assertEqual(type(lexer_for("a.py", overrides)).__name__, "PythonLexer")
+
+    def test_override_survives_the_lexer_options(self) -> None:
+        overrides = (LexerOverride(pattern="*.foo", alias="ruby"),)
+        lexer = lexer_for("a.foo", overrides)
+
+        self.assertFalse(lexer.stripnl)
+        self.assertFalse(lexer.ensurenl)
+        self.assertEqual(lexer.tabsize, 0)
+
+    def test_known_alias_validates(self) -> None:
+        validate_alias("elixir")
+
+    def test_unknown_alias_raises(self) -> None:
+        with self.assertRaises(ValueError):
+            validate_alias("nosuchlexer")
+
+    def test_render_source_applies_an_override(self) -> None:
+        document = render_source(
+            link_path="/root/thing.zzz",
+            filename="thing.zzz",
+            source="def f():\n    return 1\n",
+            overrides=(LexerOverride(pattern="*.zzz", alias="python"),),
+        )
+
+        self.assertIn('class="k"', document)
+
+    def test_render_source_without_overrides_stays_plain(self) -> None:
+        document = render_source(
+            link_path="/root/thing.zzz",
+            filename="thing.zzz",
+            source="def f():\n    return 1\n",
+        )
+
+        self.assertNotIn('class="k"', document)
+        self.assertIn('id="L1"', document)
 
 
 class LineAnchorTests(unittest.TestCase):
